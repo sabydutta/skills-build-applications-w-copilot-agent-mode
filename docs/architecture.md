@@ -28,22 +28,39 @@ OctoFit Tracker is a three-tier application for a school fitness program. The st
 
 ## Implementation decisions
 
-Record your plan here before editing code.
-
-- Presentation tier decision: Use React 19 components and React Router to present each capability, Bootstrap for layout, and the shared `src/api/client.ts` helper for every API request. Keep loading, empty, success, and accessible error states in the presentation components.
-- Logic tier decision: Use Express 5 routes under `/api/*` and keep validation and business behavior in explicit service functions so routes remain thin. Return deliberate 400/404 responses for invalid IDs, missing records, and unknown users instead of allowing Mongoose cast errors to become 500 responses.
-- Data tier decision: Use Mongoose models for all four entities, MongoDB on port 27017, required schema validation, and an idempotent seed script that preserves unrelated records.
-- Activity tracking approach: Store valid `user` and `team` references with type, minutes, computed points, and an occurrence timestamp. Validate the submitted user and team IDs, confirm both records exist, and expose create/list routes through the API contract.
-- Team management approach: Require team names and mascots in Mongoose and reject POST requests without a name. Default members to an empty array, accept existing member IDs, and preserve submitted names, mascots, and members in API responses.
-- Leaderboard approach: Aggregate activity points by team, sort descending, and attach a 1-based rank to each `{ teamName, totalPoints, rank }` result.
-- Workout suggestions approach: Find the seeded user by email, derive the first recommendation from the user's fitness goal or recent activity pattern, and return a reason that explains the match. Return a deliberate 4xx response for unknown emails.
+- **Presentation tier:** Implement React 19 route components under `octofit-tracker/frontend/src/pages` and use React Router for `/activities`, `/teams`, `/leaderboard`, and `/workouts`. Use Bootstrap for layout and `src/api/client.ts` for every API request. Each capability must keep loading, empty, success, and accessible error states separate and explicit.
+- **Logic tier:** Implement Express 5 routes under `/api/*` and keep validation and business behavior in explicit service functions so routes remain thin. Validate ObjectIds before querying, return deliberate `400`/`404` responses for invalid or missing references and unknown users, and never expose Mongoose cast errors as `500` responses.
+- **Data tier:** Implement Mongoose models for `User`, `Team`, `Activity`, and `Workout`. Use MongoDB on port `27017`, required schema fields and references, and an idempotent seed script that preserves unrelated records and existing members outside the seeded fixtures.
+- **Activity tracking:** Store valid `user` and `team` references, `type`, `minutes`, computed `points`, and `occurredAt`. Validate the submitted IDs, confirm both records exist, and expose create/list routes through the API contract.
+- **Team management:** Require team names and mascots in Mongoose and reject POST requests without a name. Default members to an empty array, accept existing member IDs, and preserve submitted names, mascots, and members in API responses.
+- **Leaderboard:** Aggregate activity points by team, sort descending, and attach a 1-based rank to each `{ teamName, totalPoints, rank }` result.
+- **Workout suggestions:** Find the seeded user by email, derive the first recommendation from the user's fitness goal or recent activity pattern, and include a reason that explains the match. Return a deliberate 4xx response for unknown emails.
+- **Smallest safe implementation order:** Complete and verify data models and idempotent seeding before logic-tier services and routes. Verify API behavior next, then add presentation components and states. Run the focused contract suites after each tier and finish with both builds.
 
 ## Test plan
 
-Record the commands you run and what each failure means.
+- **Data tier:** `npm run test:data --prefix octofit-tracker/backend`
+  - Failures mean Mongoose fields, required validation, model exports, or idempotent seeding are incomplete.
+  - Pass criterion: all 5 data contract tests pass, including preservation of unrelated data and repeatable seed counts.
+- **API tier:** `npm run test:api --prefix octofit-tracker/backend`
+  - Failures mean routes or service behavior for activities, teams, the leaderboard, or workout suggestions do not satisfy the API contract.
+  - Pass criterion: all 4 API contract tests pass with deliberate 4xx responses for invalid and unknown references.
+- **Frontend tier:** `npm test --prefix octofit-tracker/frontend`
+  - Failures mean React components do not load data through the shared client or do not present accessible loading, empty, success, and error states.
+  - Pass criterion: all presentation contract tests pass for the four capability routes.
+- **Backend build:** `npm run build --prefix octofit-tracker/backend`
+  - Failures mean Express, Mongoose, or TypeScript types do not compile and must be corrected before tier completion.
+- **Frontend build:** `npm run build --prefix octofit-tracker/frontend`
+  - Failures mean React, Router, or Vite TypeScript/code compilation is incomplete and must be corrected before final verification.
 
-- Data-tier command: `npm run test:data --prefix octofit-tracker/backend` — Failures mean Mongoose fields, required validation, model exports, or idempotent seeding are incomplete.
-- API command: `npm run test:api --prefix octofit-tracker/backend` — Failures mean routes or service behavior for activities, teams, the leaderboard, or workout suggestions do not satisfy the API contract.
-- Frontend command: `npm test --prefix octofit-tracker/frontend` — Failures mean React components do not load data through the shared client or do not present accessible loading, empty, success, and error states.
-- Backend build command: `npm run build --prefix octofit-tracker/backend` — Failures mean Express, Mongoose, or TypeScript types do not compile and must be corrected before tier completion.
-- Frontend build command: `npm run build --prefix octofit-tracker/frontend` — Failures mean React, Router, or Vite TypeScript/code compilation is incomplete and must be corrected before final verification.
+### Execution record
+
+The following results were observed on 2026-11-20:
+
+- Data contract: 4 failed and 1 passed. Required fields and validation are missing across the four Mongoose entities; the seed idempotency test passes.
+- API contract: 4 failed. Activity/team POST routes are not implemented, leaderboard aggregation is missing, and workout suggestions lack an explanatory reason.
+- Frontend contract: 15 failed. Capability routes do not yet provide the required loading, data, empty, error, and workout-request behavior.
+- Backend build: passed.
+- Frontend build: passed.
+
+GitHub Actions workflow `Validate Exercise` is active, but its latest run was skipped because the workflow's maintainer-only `if` condition requires the repository to be a template. The workflow is therefore not evidence of application contract results.
